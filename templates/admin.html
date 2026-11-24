@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>강의실 대여 시스템 - 관리자 대시보드</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Malgun Gothic', sans-serif; background: #f5f7fa; margin: 0; padding: 40px 20px; color: #252525; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+        .header h2 { margin: 0; font-size: 24px; }
+        .btn-logout { background: #c62828; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 14px; }
+        .btn-logout:hover { background: #b71c1c; }
+        
+        .card { background: #fff; padding: 28px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 32px; }
+        .card h3 { margin-top: 0; margin-bottom: 20px; font-size: 18px; border-bottom: 2px solid #f0f2f5; padding-bottom: 12px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid #f0f2f5; }
+        th { background: #f8f9fa; font-weight: 700; color: #555; }
+        
+        .status-badge { padding: 6px 12px; border-radius: 20px; font-weight: 700; font-size: 12px; display: inline-block; }
+        .status-approved { background: #e8f5e9; color: #2e7d32; }
+        .status-cancelled { background: #ffebee; color: #c62828; }
+        
+        .btn-action { background: #222; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; }
+        .btn-action:hover { background: #444; }
+	th:nth-child(5), td:nth-child(5) { 
+            width: 110px; 
+            text-align: center; 
+            white-space: nowrap; /* 칸 자체를 줄바꿈 안 함 */
+        }
+	th:nth-child(6), td:nth-child(6) { 
+            width: 110px; 
+            text-align: center; 
+            white-space: nowrap; /* 칸 자체를 줄바꿈 안 함 */
+        }
+/* 예약 현황 테이블 스크롤 박스 */
+.table-scroll-container {
+    max-height: 520px; /* 약 8개 행 정도가 들어가는 높이 */
+    overflow-y: auto;   -- 세로 스크롤 활성화 */
+    border: 1px solid #f0f2f5;
+    border-radius: 8px;
+}
+
+/* 이미 지난 예약 행 스타일 (회색 처리) */
+.past-reservation {
+    background-color: #f8f9fa !important;
+    color: #888 !important;
+}
+.past-reservation td {
+    color: #888 !important;
+}
+.past-reservation a {
+    color: #888 !important;
+}
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h2>관리자 대시보드 (통합 관리)</h2>
+        <div>
+            <span style="font-weight: 700; margin-right: 16px;">{{ session.get('name') }} 관리자님 환영합니다.</span>
+            <a href="/logout" class="btn-logout">로그아웃</a>
+        </div>
+    </div>
+
+    <!-- 전체 예약 내역 관리 -->
+    <div class="card">
+        <h3>전체 학생 예약 현황</h3>
+        {% if all_reservations %}
+	<div class="table-scroll-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>예약자</th>
+                    <th>강의실</th>
+                    <th>이용 날짜 및 시간</th>
+                    <th>사용 목적</th>
+                    <th>상태</th>
+                    <th>관리</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for res in all_reservations %}
+                <tr>
+                    <td>{{ res.name }} <br><span style="color:#777; font-size:12px;">({{ res.student_id }})</span></td>
+                    <td><strong>{{ res.room_number }}</strong></td>
+                    <td>
+                        {% set start_date = res.start_time.split(' ')[0] %}
+                        {% set start_hm = res.start_time.split(' ')[1][:5] %}
+                        {% set end_hm = res.end_time.split(' ')[1][:5] %}
+                        {{ start_date }} {{ start_hm }} ~ {{ end_hm }}
+                    </td>
+                    <td>{{ res.purpose }}</td>
+                    <td>
+                        {% if res.status == 'APPROVED' %}
+                            <span class="status-badge status-approved">예약완료</span>
+                        {% else %}
+                            <span class="status-badge status-cancelled">취소됨</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if res.status == 'APPROVED' %}
+			{% if res.end_time < current_time_str %}
+            <span style="color: #666; font-weight: 700; font-size: 13px;">[완료됨]</span>
+        {% else %}
+            <!-- [2차 추가] 관리자 강제 취소 시 사유를 반드시 입력받고 인앱 알림과 연동하기 위한 입력 폼 및 자바스크립트 프롬프트 처리 영역 -->
+            <form action="/admin/cancel/{{ res.id }}" method="POST" id="cancel-form-{{ res.id }}" style="display:inline;">
+                <input type="hidden" name="cancel_reason" id="reason-input-{{ res.id }}">
+                <button type="button" class="btn-action" onclick="promptCancel({{ res.id }})">강제 취소</button>
+            </form>
+        {% endif %}
+			{% else %}
+			-
+			{% endif %}
+			<script>
+			    function promptCancel(resId) {
+			        const reason = prompt('예약 강제 취소 사유를 입력하세요 (학생에게 알림으로 전송됩니다):');
+			        if (reason !== null && reason.trim() !== '') {
+ 			        document.getElementById(`reason-input-${resId}`).value = reason.trim();
+  			         document.getElementById(`cancel-form-${resId}`).submit();
+  			      } else if (reason !== null) {
+ 			          alert('취소 사유를 반드시 입력해야 합니다.');
+ 			      }
+			    }
+			</script>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: #70777e; text-align: center; padding: 20px 0; margin: 0;">등록된 예약 내역이 없습니다.</p>
+        {% endif %}
+    </div>
+</div>
+    <!-- 시설 신고 관리 -->
+    <div class="card">
+        <h3>시설 애로사항 신고 현황</h3>
+        {% if reports %}
+        <table>
+            <thead>
+                <tr>
+                    <th>신고자</th>
+                    <th>강의실</th>
+                    <th>제목 / 내용</th>
+                    <th>등록일시</th>
+                    <th>상태</th>
+                </tr>
+            </thead>
+<tbody>
+    <!-- [1차 추가] 초기 버전의 단순 텍스트 출력에서 벗어나, 시설 신고 처리 상태(RESOLVED/PENDING)에 따라 행 배경색과 텍스트 색상을 시각적으로 다르게 표현하도록 조건부 스타일 추가 -->
+    {% for rep in reports %}
+    <tr {% if rep.status == 'RESOLVED' %}style="background-color: #fafbfc; color: #666;"{% endif %}>
+        <td>{{ rep.name }}</td>
+        <td><strong>{{ rep.room_number }}</strong></td>
+        <td>
+            <a href="/report/{{ rep.id }}" style="font-weight: 700; color: {% if rep.status == 'RESOLVED' %}#666{% else %}#1a0dab{% endif %}; text-decoration: none;">{{ rep.title }}</a>
+            <br><span style="font-size:13px;">{{ rep.content[:30] }}...</span>
+        </td>
+        <td>{{ rep.created_at }}</td>
+        <td>
+            {% if rep.status == 'RESOLVED' %}
+                <span class="status-badge" style="background: #e2e6eb; color: #555;">처리완료</span>
+            {% else %}
+                <span class="status-badge" style="background: #fff3e0; color: #e65100;">검토중</span>
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+</tbody>
+        </table>
+        {% else %}
+        <p style="color: #70777e; text-align: center; padding: 20px 0; margin: 0;">접수된 시설 신고가 없습니다.</p>
+        {% endif %}
+    </div>
+
+<!-- [3차 추가] 관리자 대시보드 내 보강 및 특강 관리 섹션 <= 초기 프로토타입에 없던 일회성 보강/특강 등록 및 목록 관리 기능을 제공하기 위해 신규 추가된 대시보드 카드 영역 -->
+<div class="card">
+    <h3 style="margin-top: 0; font-size: 20px; border-bottom: 2px solid #f0f2f5; padding-bottom: 16px;">
+        강의실 보강 및 특강 관리
+    </h3>
+    
+    <h4 style="margin-top: 20px; color: #2e7d32; font-size: 16px;">보강 / 특강 등록 (교시 단위)</h4>
+    <form action="/admin/supplementary/add" method="POST" style="margin-top: 16px;">
+        <div style="margin-bottom: 14px;">
+            <label style="display:block; font-size: 13px; font-weight: 700; margin-bottom: 6px;">강의실 선택</label>
+            <select name="room_id" required style="width:100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; background: #fff;">
+                <option value="">-- 강의실 --</option>
+                {% for r in rooms %}
+                <option value="{{ r.id }}">{{ r.room_number }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div style="margin-bottom: 14px;">
+            <label style="display:block; font-size: 13px; font-weight: 700; margin-bottom: 6px;">강의명 (선택 또는 직접 입력)</label>
+            <input type="text" name="course_name" list="course-list" placeholder="과목명을 선택하거나 입력하세요" required style="width:100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; background: #fff;">
+            <datalist id="course-list">
+                {% for c in existing_courses %}
+                <option value="{{ c.course_name }}">
+                {% endfor %}
+            </datalist>
+        </div>
+        
+        <div style="margin-bottom: 14px;">
+            <label style="display:block; font-size: 13px; font-weight: 700; margin-bottom: 6px;">보강 날짜</label>
+            <input type="date" name="target_date" required style="width:100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; background: #fff;">
+        </div>
+        
+        <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+            <div style="flex: 1;">
+                <label style="display:block; font-size: 13px; font-weight: 700; margin-bottom: 6px;">시작 교시</label>
+                <select name="start_period" required style="width:100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; background: #fff;">
+                    <option value="1">1교시 (09:30~)</option>
+                    <option value="2">2교시 (10:30~)</option>
+                    <option value="3">3교시 (11:30~)</option>
+                    <option value="4">4교시 (12:30~)</option>
+                    <option value="5">5교시 (13:30~)</option>
+                    <option value="6">6교시 (14:30~)</option>
+                    <option value="7">7교시 (15:30~)</option>
+                    <option value="8">8교시 (16:30~)</option>
+                    <option value="9">9교시 (17:30~)</option>
+                </select>
+            </div>
+            <div style="flex: 1;">
+                <label style="display:block; font-size: 13px; font-weight: 700; margin-bottom: 6px;">연속 시간 (교시 수)</label>
+                <select name="duration_hours" required style="width:100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; background: #fff;">
+                    <option value="1">1시간 (1교시)</option>
+                    <option value="2">2시간 (2교시)</option>
+                    <option value="3">3시간 (3교시)</option>
+                    <option value="4">4시간 (4교시)</option>
+                </select>
+            </div>
+        </div>
+        
+        <button type="submit" style="width:100%; background: #2e7d32; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 14px;">보강 시간표 등록</button>
+    </form>
+
+    <!-- 등록된 보강 목록 현황 -->
+    <div style="margin-top: 40px;">
+        <h4 style="margin-bottom: 12px; font-size: 16px;">현재 등록된 보강 및 특강 목록</h4>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <thead>
+                <tr style="background: #f1f8e9;">
+                    <th style="padding: 10px; border-bottom: 1px solid #ddd; text-align: left;">강의실 / 과목명</th>
+                    <th style="padding: 10px; border-bottom: 1px solid #ddd; text-align: left;">보강 일시</th>
+                    <th style="padding: 10px; border-bottom: 1px solid #ddd; text-align: center;">관리</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sc in supp_classes %}
+                <tr>
+                    <td style="padding: 10px; border-bottom: 1px solid #eee;"><strong>{{ sc.room_number }}</strong><br>{{ sc.course_name }}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #eee;">{{ sc.target_date }} ({{ sc.start_time }} ~ {{ sc.end_time }})</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">
+                        <form action="/admin/schedule/delete/supp/{{ sc.id }}" method="POST" style="display:inline;">
+                            <button type="submit" style="background: #ffebee; color: #c62828; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: 600;">삭제</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="3" style="text-align: center; color: #777; padding: 20px;">등록된 보강 및 특강 내역이 없습니다.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+</div>
+
+
+</body>
+</html>

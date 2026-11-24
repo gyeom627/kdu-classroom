@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>강의실 대여 - 교시 선택</title>
+    <!-- [3차 추가] 초기 프로토타입의 단순 시간 입력 텍스트박스 방식은 사용자가 수업 시간이나 마감 시간을 헷갈려 오예약하는 문제가 발생하므로, 교시 단위(1~9교시) 기반의 동적 카드 그리드 UI 및 실시간 충돌 방지 선택 시스템 구축[cite: 20] -->
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Malgun Gothic', sans-serif; background: #f5f7fa; margin: 0; padding: 40px 20px; color: #252525; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .card { background: #fff; padding: 32px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 24px; }
+        .card h3 { margin-top: 0; margin-bottom: 16px; font-size: 20px; }
+        .info-box { background: #f8f9fa; padding: 16px; border-radius: 10px; margin-bottom: 24px; font-size: 15px; line-height: 1.6; }
+        
+        .period-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .period-btn {
+            padding: 16px;
+            border-radius: 10px;
+            border: 2px solid #cfd5da;
+            background: #fff;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s;
+        }
+        .period-btn.available:hover { border-color: #222; background: #fafbfc; }
+        .period-btn.selected { border-color: #222; background: #222; color: #fff; }
+        .period-btn.selected .period-time, 
+        .period-btn.selected .period-status { color: #ddd !important; }
+        .period-btn.unavailable { background: #f0f2f5; border-color: #e2e6eb; color: #aaa; cursor: not-allowed; }
+        
+        .period-title { font-weight: 700; font-size: 16px; margin-bottom: 4px; }
+        .period-time { font-size: 13px; color: #666; }
+        .period-status { font-size: 12px; font-weight: 600; margin-top: 8px; display: inline-block; }
+        
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; font-weight: 700; margin-bottom: 8px; font-size: 14px; }
+        select { width: 100%; padding: 12px; border: 1px solid #cfd5da; border-radius: 10px; font-size: 15px; outline: none; }
+        
+        .btn-submit { background: #222; color: white; border: none; padding: 14px; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 16px; width: 100%; }
+        .btn-submit:hover { background: #444; }
+        .btn-back { display: inline-block; margin-bottom: 16px; color: #666; text-decoration: none; font-weight: 600; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <a href="/" class="btn-back">← 메인으로 돌아가기</a>
+    
+    <div class="card">
+        <h3>⏰ 이용할 시간대(시작 교시)를 선택하세요</h3>
+        
+        <div class="info-box">
+            📍 <strong>선택 정보</strong><br>
+            - 강의실: {{ room.room_number }} (정원 {{ room.capacity }}명)<br>
+            - 이용 날짜: {{ date_str }}<br>
+            - 신청 인원 및 목적: {{ head_count }}명 / {{ purpose }}
+        </div>
+
+        <form action="/confirm_reserve" method="POST" id="reserve-form">
+            <input type="hidden" name="room_id" value="{{ room.id }}">
+            <input type="hidden" name="date" value="{{ date_str }}">
+            <input type="hidden" name="head_count" value="{{ head_count }}">
+            <input type="hidden" name="purpose" value="{{ purpose }}">
+            <input type="hidden" name="start_period" id="selected-period" required>
+
+            <label style="display:block; font-weight:700; margin-bottom:12px; font-size:14px;">교시별 현황 (원하는 시작 교시를 클릭하세요)</label>
+            
+            <div class="period-grid">
+                {% for p in periods %}
+                <div class="period-btn {% if p.status == 'UNAVAILABLE' %}unavailable{% else %}available{% endif %}"
+                     data-period="{{ p.period }}"
+                     data-status="{{ p.status }}"
+                     onclick="handlePeriodClick({{ p.period }})">
+                    <div class="period-title">{{ p.period }}교시</div>
+                    <div class="period-time">{{ p.start }} ~ {{ p.end }}</div>
+                    <div class="period-status" style="color: {% if p.status == 'UNAVAILABLE' %}#c62828{% elif p.status == 'WARNING' %}#e65100{% else %}#2e7d32{% endif %};">
+                        {% if p.status == 'UNAVAILABLE' %}❌ {{ p.reason }}
+                        {% elif p.status == 'WARNING' %}⚠️ {{ p.reason }}
+                        {% else %}✅ 예약 가능{% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="form-group">
+                <label>이용 시간 (연속 시간 선택)</label>
+                <select name="duration_hours" id="duration-select" onchange="updateSelectionUI()" required>
+                    <option value="1">1시간 (1개 교시)</option>
+                    <option value="2">2시간 (2개 교시)</option>
+                    <option value="3">3시간 (3개 교시)</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn-submit" id="submit-btn" disabled style="opacity: 0.5;">시작 교시를 선택해주세요</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    let currentSelectedStart = null;
+
+    function handlePeriodClick(periodNum) {
+        const btn = document.querySelector(`[data-period='${periodNum}']`);
+        if (btn.classList.contains('unavailable')) return;
+
+        currentSelectedStart = periodNum;
+        document.getElementById('selected-period').value = periodNum;
+        updateSelectionUI();
+    }
+
+    function updateSelectionUI() {
+        if (!currentSelectedStart) return;
+
+        const duration = parseInt(document.getElementById('duration-select').value);
+        const endPeriod = currentSelectedStart + duration - 1;
+
+        if (endPeriod > 9) {
+            alert('9교시까지만 연속 예약이 가능합니다.');
+            document.getElementById('duration-select').value = '1';
+            updateSelectionUI();
+            return;
+        }
+
+        const allBtns = document.querySelectorAll('.period-btn');
+        let hasConflict = false;
+
+        allBtns.forEach(btn => {
+            const pNum = parseInt(btn.getAttribute('data-period'));
+            const status = btn.getAttribute('data-status');
+
+            if (pNum >= currentSelectedStart && pNum <= endPeriod) {
+                if (status === 'UNAVAILABLE') {
+                    hasConflict = true;
+                }
+                btn.classList.add('selected');
+            } else {
+                btn.classList.remove('selected');
+            }
+        });
+
+        const submitBtn = document.getElementById('submit-btn');
+        if (hasConflict) {
+            alert('선택하신 시간대에 이미 수업이나 마감된 교시가 포함되어 있습니다. 다른 시간을 선택해주세요.');
+            currentSelectedStart = null;
+            document.getElementById('selected-period').value = '';
+            allBtns.forEach(b => b.classList.remove('selected'));
+            submitBtn.disabled = true;
+            submitBtn.style.opacity = '0.5';
+            submitBtn.textContent = '시작 교시를 선택해주세요';
+        } else {
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
+            submitBtn.textContent = `${currentSelectedStart}교시부터 ${duration}시간 예약 확정하기`;
+        }
+    }
+</script>
+
+</body>
+</html>

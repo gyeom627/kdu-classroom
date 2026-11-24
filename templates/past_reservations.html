@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>지난 예약 내역</title>
+    <!-- [1차 추가] 초기 프로토타입에서는 활성 예약과 지난 예약/취소된 예약이 하나의 메인 화면에 섞여 가독성이 떨어지는 문제가 있어, 완료되거나 취소된 이력을 별도의 전용 페이지에서 분리하여 조회할 수 있도록 구성[cite: 17] -->
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Malgun Gothic', sans-serif; background: #f5f7fa; margin: 0; padding: 40px 20px; color: #252525; }
+        .container { max-width: 900px; margin: 0 auto; }
+        .card { background: #fff; padding: 32px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+        .btn-back { display: inline-block; margin-bottom: 20px; color: #666; text-decoration: none; font-weight: 600; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid #f0f2f5; }
+        th { background: #f8f9fa; font-weight: 700; color: #555; }
+        .status-badge { padding: 6px 12px; border-radius: 20px; font-weight: 700; font-size: 12px; display: inline-block; }
+        .status-cancelled { background: #ffebee; color: #c62828; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <a href="/" class="btn-back">← 메인으로 돌아가기</a>
+    <div class="card">
+        <h3>📁 지난 예약 및 취소된 내역</h3>
+        {% if past_list %}
+        <table>
+            <thead>
+                <tr>
+                    <th>강의실</th>
+                    <th>이용 날짜 및 시간</th>
+                    <th>사용 목적</th>
+                    <th>상태</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for res in past_list %}
+                <tr style="background-color: #fafbfc; color: #666;">
+                    <td><strong>{{ res.room_number }}</strong></td>
+                    <td>
+                        {% set start_date = res.start_time.split(' ')[0] %}
+                        {% set start_hm = res.start_time.split(' ')[1][:5] %}
+                        {% set end_hm = res.end_time.split(' ')[1][:5] %}
+                        {{ start_date }} {{ start_hm }} ~ {{ end_hm }}
+                    </td>
+                    <td>{{ res.purpose }}</td>
+                    <td>
+                        {% if res.status == 'CANCELLED' %}
+                            <span class="status-badge status-cancelled">취소됨</span>
+                        {% else %}
+                            <span class="status-badge" style="background: #e2e6eb; color: #555;">이용완료</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: #70777e; text-align: center; padding: 30px 0; margin: 0;">지난 예약 내역이 없습니다.</p>
+        {% endif %}
+    </div>
+</div>
+</body>
+</html>

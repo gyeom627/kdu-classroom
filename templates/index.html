@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>강의실 대여 예약 서비스</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: 'Malgun Gothic', sans-serif; 
+            background: #f5f7fa; 
+            margin: 0;
+            padding: 40px 20px;
+            color: #252525;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        /* 상단 헤더 및 사용자 정보 */
+        .header-card {
+            background: #fff;
+            padding: 24px 32px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .header-card h2 { margin: 0; font-size: 22px; letter-spacing: -0.5px; }
+        .user-info { display: flex; align-items: center; gap: 16px; font-size: 15px; }
+        .btn-logout {
+            background: #f0f2f5;
+            color: #555;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        .btn-logout:hover { background: #e2e6eb; color: #222; }
+
+        /* 플래시 메시지 영역 */
+        .alert {
+            padding: 14px 20px;
+            border-radius: 10px;
+            margin-bottom: 24px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .alert-success { background: #e8f5e9; color: #2e7d32; }
+        .alert-danger { background: #ffebee; color: #c62828; }
+
+        /* 콘텐츠 카드 그리드 */
+        .card {
+            background: #fff;
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            margin-bottom: 24px;
+        }
+        .card h3 { margin-top: 0; margin-bottom: 20px; font-size: 18px; border-bottom: 2px solid #f0f2f5; padding-bottom: 12px; }
+
+        /* 폼 요소 스타일 */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .input-group { display: flex; flex-direction: column; gap: 6px; }
+        .input-group label { font-size: 13px; font-weight: 700; color: #555; }
+        input, select {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #cfd5da;
+            border-radius: 10px;
+            font-size: 15px;
+            background: #fcfcfc;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus, select:focus { border-color: #222; background: #fff; }
+
+        .btn-submit {
+            background: #222;
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 800;
+            font-size: 15px;
+            width: 100%;
+            transition: background 0.2s;
+        }
+        .btn-submit:hover { background: #444; }
+
+        /* 테이블 스타일 (예약 내역) */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 14px;
+        }
+        th, td {
+            padding: 14px 12px;
+            border-bottom: 1px solid #eceff2;
+        }
+        th { font-weight: 700; color: #555; background: #fafbfc; }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .status-approved { background: #e8f5e9; color: #2e7d32; }
+        .status-cancelled { background: #ffebee; color: #c62828; }
+
+        .btn-cancel {
+            background: #fff;
+            color: #c62828;
+            border: 1px solid #ffcdd2;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-cancel:hover { background: #ffebee; }
+
+	/* 2. 마지막 '상태' 열은 글자가 절대 쪼개지지 않도록 충분한 공간(예: 110px)을 강제 확보 */
+        th:nth-child(5), td:nth-child(5) { 
+            width: 110px; 
+            text-align: center; 
+            white-space: nowrap; /* 칸 자체를 줄바꿈 안 함 */
+        }
+	th:nth-child(4), td:nth-child(4) { 
+            width: 110px; 
+            text-align: center; 
+            white-space: nowrap; /* 칸 자체를 줄바꿈 안 함 */
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 상단 헤더 -->
+    <div class="header-card">
+        <h2>강의실 대여 예약 서비스 (8층)</h2>
+        <div class="user-info">
+    		<span><strong>{{ session.get('name') }}</strong>님 환영합니다.</span>
+    		{% if session.get('role') == 'ADMIN' %}
+    		<a href="/admin" class="btn-logout" style="background: #222; color: #fff;">관리자 페이지</a>
+    		{% endif %}
+    		<a href="/logout" class="btn-logout">로그아웃</a>
+	</div>
+    </div>
+<!-- [1차 추가], [2차 추가] 지난 예약 조회, 시설 신고 게시판, 알림 메일함 등 전용 서브 페이지로 이동할 수 있는 상단 네비게이션 버튼 바 영역 추가 -->
+<div style="display: flex; gap: 12px; margin-bottom: 24px;">
+    <a href="/past_reservations" style="flex: 1; background: #fff; border: 1px solid #cfd5da; padding: 14px; border-radius: 12px; text-align: center; text-decoration: none; color: #333; font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">지난 예약 보기</a>
+    <a href="/reports" style="flex: 1; background: #fff; border: 1px solid #cfd5da; padding: 14px; border-radius: 12px; text-align: center; text-decoration: none; color: #333; font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">시설 신고 게시판</a>
+    <a href="/notifications_mail" style="flex: 1; background: #fff; border: 1px solid #cfd5da; padding: 14px; border-radius: 12px; text-align: center; text-decoration: none; color: #333; font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">알림 메일함</a>
+</div>
+
+
+    <!-- 플래시 메시지 출력 -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- 예약 신청 폼 -->
+    <div class="card">
+    <h3>강의실 예약 (1단계: 대여 조건 선택)</h3>
+    <form action="/select_time" method="GET">
+        <div class="form-grid">
+            <div class="input-group">
+                <label>강의실 선택</label>
+                <select name="room_id" required>
+                    <option value="">-- 강의실을 선택하세요 --</option>
+                    {% for room in rooms %}
+                    <option value="{{ room.id }}">{{ room.room_number }} (정원: {{ room.capacity }}명)</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="input-group">
+    		<label>이용 날짜</label>
+    		<input type="date" name="date" id="date-input" required>
+	    </div>
+            <div class="input-group">
+                <label>이용 인원 (명)</label>
+                <input type="number" name="head_count" value="1" min="1" required>
+            </div>
+        </div>
+        <div class="input-group" style="margin-bottom: 20px;">
+            <label>사용 목적</label>
+            <input type="text" name="purpose" placeholder="예: 오픈소스SW 팀 프로젝트 회의" required>
+        </div>
+        <button type="submit" class="btn-submit">시간표 확인 및 교시 선택하기 →</button>
+    </form>
+</div>
+
+<script>
+    const today = new Date().toISOString().split('T')[0];
+    
+    const dateInput = document.getElementById('date-input');
+    dateInput.min = today;
+    dateInput.value = today;
+</script>
+
+<!-- 동적 교시 상태 조회를 위한 JavaScript -->
+<script>
+    const roomSelect = document.getElementById('room-select');
+    const dateInput = document.getElementById('date-input');
+    const headCountInput = document.getElementById('headcount-input');
+    const startPeriodSelect = document.getElementById('start-period-select');
+
+    async function updatePeriods() {
+        const roomId = roomSelect.value;
+        const date = dateInput.value;
+        const headCount = headCountInput.value;
+
+        if (!roomId || !date) {
+            startPeriodSelect.innerHTML = '<option value="">-- 강의실과 날짜를 먼저 선택하세요 --</option>';
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/periods?room_id=${roomId}&date=${date}&head_count=${headCount}`);
+            const data = await res.json();
+
+            if (res.ok) {
+                startPeriodSelect.innerHTML = '<option value="">-- 시작 교시를 선택하세요 --</option>';
+                data.periods.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p.period;
+                    
+                    if (p.status === 'UNAVAILABLE') {
+                        option.disabled = true;
+                        option.textContent = `${p.period}교시 (${p.start}~{p.end}) - [${p.reason}]`;
+                        option.style.color = '#c62828';
+                    } else if (p.status === 'WARNING') {
+                        option.textContent = `${p.period}교시 (${p.start}~{p.end}) - [${p.reason}]`;
+                    } else {
+                        option.textContent = `${p.period}교시 (${p.start}~{p.end}) - [이용 가능]`;
+                    }
+                    startPeriodSelect.appendChild(option);
+                });
+            }
+        } catch (err) {
+            console.error('교시 정보 조회 실패:', err);
+        }
+    }
+
+    roomSelect.addEventListener('change', updatePeriods);
+    dateInput.addEventListener('change', updatePeriods);
+    headCountInput.addEventListener('change', updatePeriods);
+    
+    dateInput.valueAsDate = new Date();
+</script>
+
+<!-- 나의 예약 현황 (활성 예약만 필터링해서 표시) -->
+<div class="card">
+    <h3>나의 예약 현황</h3>
+    <!-- [1차 추가] 초기 프로토타입의 단순 예약 목록 출력 방식에서 벗어나, 이미 시간이 지난 예약이나 취소된 예약을 제외하고 현재 시각 기준 진행 예정인 활성 예약만 필터링하여 가독성을 높이기 위한 진디렉티브 로직 추가 -->
+    {% set active_reservations = [] %}
+    {% for res in my_reservations %}
+        {% if res.status == 'APPROVED' and res.end_time >= current_time_str %}
+            {% set _ = active_reservations.append(res) %}
+        {% endif %}
+    {% endfor %}
+
+    {% if active_reservations %}
+    <table>
+        <thead>
+            <tr>
+                <th>강의실</th>
+                <th>이용 날짜 및 시간</th>
+                <th>사용 목적</th>
+                <th>상태</th>
+                <th>관리</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for res in active_reservations %}
+            <tr>
+                <td><strong>{{ res.room_number }}</strong></td>
+                <td>
+                    {% set start_date = res.start_time.split(' ')[0] %}
+                    {% set start_hm = res.start_time.split(' ')[1][:5] %}
+                    {% set end_hm = res.end_time.split(' ')[1][:5] %}
+                    {{ start_date }} {{ start_hm }} ~ {{ end_hm }}
+                </td>
+                <td>{{ res.purpose }}</td>
+                <td><span class="status-badge status-approved">예약완료</span></td>
+                <td>
+                    <form action="/cancel/{{ res.id }}" method="POST" style="display:inline;">
+                        <button type="submit" class="btn-cancel" onclick="return confirm('정말 예약을 취소하시겠습니까?');">취소</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #70777e; text-align: center; padding: 20px 0; margin: 0;">진행 예정인 예약 내역이 없습니다.</p>
+    {% endif %}
+</div>
+</div>
+<!-- [2차 추가] 관리자 강제 취소 또는 보강 수업 등록으로 인해 예약이 자동 취소되었을 때 학생이 로그인 직후 인앱 알림 내용을 즉시 확인할 수 있도록 띄워주는 팝업 모달 UI 영역 -->
+{% if unread_notifications %}
+<div id="notification-modal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;">
+    <div style="background: white; padding: 36px; border-radius: 20px; width: 100%; max-width: 440px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: center;">
+        <h3 style="margin-top: 0; color: #c62828; font-size: 20px; margin-bottom: 16px;">예약 취소 안내 알림</h3>
+        
+        {% for notif in unread_notifications %}
+        <div style="background: #fff0f0; border-left: 4px solid #c62828; padding: 16px; border-radius: 8px; text-align: left; margin-bottom: 20px; font-size: 14px; line-height: 1.5; white-space: pre-line;">
+            {{ notif.message }}
+        </div>
+        
+        <form action="/notification/read/{{ notif.id }}" method="POST">
+            <button type="submit" style="background: #222; color: white; border: none; padding: 14px; border-radius: 10px; font-weight: 800; width: 100%; cursor: pointer; font-size: 15px;">확인 완료</button>
+        </form>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+</body>
+</html>

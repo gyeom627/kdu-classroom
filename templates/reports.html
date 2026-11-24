@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>시설 애로사항 신고 게시판</title>
+    <!-- [1차/2차 추가] 초기 프로토타입에는 아무 예약이나 무분별하게 신고할 수 있는 구조였으나, DoS 방어 및 신뢰성 확보를 위해 '이용 완료된 건'만 대상으로 제한하고, 현장 사진 첨부 파일 업로드 폼(enctype)을 결합하여 고도화 -->
+    <style>
+
+        * { box-sizing: border-box; }
+        body { font-family: 'Malgun Gothic', sans-serif; background: #f5f7fa; margin: 0; padding: 40px 20px; color: #252525; }
+        .container { max-width: 900px; margin: 0 auto; }
+        .card { background: #fff; padding: 32px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 24px; }
+        .btn-back { display: inline-block; margin-bottom: 20px; color: #666; text-decoration: none; font-weight: 600; font-size: 14px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-weight: 700; margin-bottom: 6px; font-size: 14px; }
+        input, select, textarea { width: 100%; padding: 12px; border: 1px solid #cfd5da; border-radius: 8px; font-size: 14px; outline: none; }
+        textarea { resize: vertical; height: 100px; }
+        .btn-submit { background: #222; color: white; border: none; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: 700; width: 100%; font-size: 15px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid #f0f2f5; }
+        th { background: #f8f9fa; font-weight: 700; color: #555; }
+/* 2. 마지막 '상태' 열은 글자가 절대 쪼개지지 않도록 충분한 공간(예: 110px)을 강제 확보 */
+        th:nth-child(5), td:nth-child(5) { 
+            width: 110px; 
+            text-align: center; 
+            white-space: nowrap; /* 칸 자체를 줄바꿈 안 함 */
+        }
+
+    </style>
+</head>
+<body>
+<div class="container">
+    <a href="/" class="btn-back">← 메인으로 돌아가기</a>
+    
+    <!-- 신고 작성 카드 -->
+    <div class="card">
+        <h3>🚨 시설 애로사항 신고하기 (이용 완료된 건 대상)</h3>
+        {% if my_finished_reservations %}
+        <!-- [2차 추가] 파일 업로드 지원: 이미지 파일 전송을 위해 폼 태그에 multipart/form-data 인코딩 타입 추가 -->
+        <form action="/report/create" method="POST" enctype="multipart/form-data">
+            <div class="form-group">
+                <label>신고할 예약 선택</label>
+                <select name="reservation_id" required>
+                    <option value="">-- 이용 완료된 예약을 선택하세요 --</option>
+                    {% for r in my_finished_reservations %}
+                    <option value="{{ r.id }}">[{{ r.room_number }}] {{ r.start_time }} 이용 건</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>제목</label>
+                <input type="text" name="title" placeholder="예: 8층 1809호 프로젝터 화면 노이즈 현상" required>
+            </div>
+            <div class="form-group">
+                <label>상세 내용</label>
+                <textarea name="content" placeholder="발생한 불편 사항이나 파손 상태를 상세히 적어주세요." required></textarea>
+            </div>
+	    <div class="form-group">
+        	<label>현장 사진 첨부 (선택)</label>
+        	<input type="file" name="report_image" accept="image/*">
+     	    </div>
+            <button type="submit" class="btn-submit">신고 접수하기</button>
+        </form>
+        {% else %}
+        <p style="color: #666; font-size: 14px; margin: 0;">신고 가능한 이용 완료 예약 건이 없습니다. (강의실 이용 후에 신고가 가능합니다.)</p>
+        {% endif %}
+    </div>
+
+    <!-- 전체 시설 신고 내역 -->
+    <div class="card">
+        <h3>📋 전체 시설 신고 내역</h3>
+        {% if reports %}
+        <table>
+            <thead>
+                <tr>
+                    <th>신고자</th>
+                    <th>강의실</th>
+                    <th>제목 / 내용</th>
+                    <th>접수일시</th>
+                    <th>상태</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rep in reports %}
+                <tr {% if rep.status == 'RESOLVED' %}style="background-color: #fafbfc; color: #666;"{% endif %}>
+                    <td>{{ rep.name }}</td>
+                    <td><strong>{{ rep.room_number }}</strong></td>
+                    <td>
+                        <a href="/report/{{ rep.id }}" style="font-weight: 700; color: {% if rep.status == 'RESOLVED' %}#666{% else %}#1a0dab{% endif %}; text-decoration: none;">{{ rep.title }}</a>
+                        <br><span style="color:#666; font-size:13px;">{{ rep.content }}</span>
+                    </td>
+                    <td>{{ rep.created_at }}</td>
+                    <td>
+                        {% if rep.status == 'RESOLVED' %}
+                            <span style="background: #e2e6eb; color: #555; padding: 4px 10px; border-radius: 12px; font-weight: 700; font-size: 12px;">처리완료</span>
+                        {% else %}
+                            <span style="background: #fff3e0; color: #e65100; padding: 4px 10px; border-radius: 12px; font-weight: 700; font-size: 12px;">검토중</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: #70777e; text-align: center; padding: 20px 0; margin: 0;">접수된 신고 내역이 없습니다.</p>
+        {% endif %}
+    </div>
+</div>
+</body>
+</html>
